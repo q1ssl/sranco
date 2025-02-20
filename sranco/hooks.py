@@ -1,33 +1,31 @@
+from . import __version__ as app_version
+
 app_name = "sranco"
-app_title = "sranco"
+app_title = "Sranco"
 app_publisher = "Amit Kumar"
-app_description = "sranco"
+app_description = "customizations"
 app_email = "amit@worf.in"
-app_license = "mit"
-
-# Apps
-# ------------------
-
-# required_apps = []
-
-# Each item in the list will be shown as an app in the apps page
-# add_to_apps_screen = [
-# 	{
-# 		"name": "sranco",
-# 		"logo": "/assets/sranco/logo.png",
-# 		"title": "sranco",
-# 		"route": "/sranco",
-# 		"has_permission": "sranco.api.permission.has_app_permission"
-# 	}
-# ]
+app_license = "MIT"
 
 # Includes in <head>
 # ------------------
 
-# include js, css files in header of desk.html
-# app_include_css = "/assets/sranco/css/sranco.css"
-# app_include_js = "/assets/sranco/js/sranco.js"
+# Required Apps
+required_apps = ["frappe/erpnext"]
+required_apps = ["https://github.com/resilient-tech/india-compliance/india_compliance"]
 
+# include js, css files in header of desk.html
+app_include_css = "public/css/report.css"
+# app_include_js = "/assets/sranco/js/sranco.js"
+fixtures = [
+    {"dt": "Print Format", "filters": [
+        [
+            "module", "like", 
+                "Sranco"
+            
+        ]
+    ]}
+]
 # include js, css files in header of web template
 # web_include_css = "/assets/sranco/css/sranco.css"
 # web_include_js = "/assets/sranco/js/sranco.js"
@@ -43,15 +41,19 @@ app_license = "mit"
 # page_js = {"page" : "public/js/file.js"}
 
 # include js in doctype views
+doctype_js = {
+    "Opportunity": "public/js/Opportunity.js",
+    "Sales Invoice": "public/js/SalesInvoice.js",
+    "Quotation": "public/js/Quotation.js",
+    "Sales Order": "public/js/SalesOrder.js",
+    "Item Price": "public/js/ItemPrice.js",
+    "Purchase Receipt": "public/js/PurchaseReceipt.js",
+    "Sales Partner": "public/js/SalesPartner.js",
+}
 # doctype_js = {"doctype" : "public/js/doctype.js"}
 # doctype_list_js = {"doctype" : "public/js/doctype_list.js"}
 # doctype_tree_js = {"doctype" : "public/js/doctype_tree.js"}
 # doctype_calendar_js = {"doctype" : "public/js/doctype_calendar.js"}
-
-# Svg Icons
-# ------------------
-# include app icons in desk
-# app_include_icons = "sranco/public/icons.svg"
 
 # Home Pages
 # ----------
@@ -61,7 +63,7 @@ app_license = "mit"
 
 # website user home page (by Role)
 # role_home_page = {
-# 	"Role": "home_page"
+#	"Role": "home_page"
 # }
 
 # Generators
@@ -75,8 +77,8 @@ app_license = "mit"
 
 # add methods and filters to jinja environment
 # jinja = {
-# 	"methods": "sranco.utils.jinja_methods",
-# 	"filters": "sranco.utils.jinja_filters"
+#	"methods": "sranco.utils.jinja_methods",
+#	"filters": "sranco.utils.jinja_filters"
 # }
 
 # Installation
@@ -118,11 +120,11 @@ app_license = "mit"
 # Permissions evaluated in scripted ways
 
 # permission_query_conditions = {
-# 	"Event": "frappe.desk.doctype.event.event.get_permission_query_conditions",
+#	"Event": "frappe.desk.doctype.event.event.get_permission_query_conditions",
 # }
 #
 # has_permission = {
-# 	"Event": "frappe.desk.doctype.event.event.has_permission",
+#	"Event": "frappe.desk.doctype.event.event.has_permission",
 # }
 
 # DocType Class
@@ -130,40 +132,57 @@ app_license = "mit"
 # Override standard doctype classes
 
 # override_doctype_class = {
-# 	"ToDo": "custom_app.overrides.CustomToDo"
+# 	"Stock Order": "sranco.utils.jinja_methods.StockOrderCustom",
 # }
-
 # Document Events
 # ---------------
 # Hook on document methods and events
 
+doc_events = {
+    "Sales Order": {
+        "on_submit": "sranco.sales_order.on_submit",
+    },
+    "Stock Order": {
+        "on_submit": "sranco.stock_order.on_submit",
+    },
+    "Item Price": {
+        "validate": "sranco.item_price.validate"
+    },
+    "Purchase Receipt": {
+        "on_trash": "sranco.purchase_receipt.reset_received_qty_in_shipment_tracker",
+    },
+    "Quotation": {
+        "on_submit": "sranco.quotation.quotation_on_submit",
+    },
+}
+
 # doc_events = {
-# 	"*": {
-# 		"on_update": "method",
-# 		"on_cancel": "method",
-# 		"on_trash": "method"
-# 	}
+#	"*": {
+#		"on_update": "method",
+#		"on_cancel": "method",
+#		"on_trash": "method"
+#	}
 # }
 
 # Scheduled Tasks
 # ---------------
 
 # scheduler_events = {
-# 	"all": [
-# 		"sranco.tasks.all"
-# 	],
-# 	"daily": [
-# 		"sranco.tasks.daily"
-# 	],
-# 	"hourly": [
-# 		"sranco.tasks.hourly"
-# 	],
-# 	"weekly": [
-# 		"sranco.tasks.weekly"
-# 	],
-# 	"monthly": [
-# 		"sranco.tasks.monthly"
-# 	],
+#	"all": [
+#		"sranco.tasks.all"
+#	],
+#	"daily": [
+#		"sranco.tasks.daily"
+#	],
+#	"hourly": [
+#		"sranco.tasks.hourly"
+#	],
+#	"weekly": [
+#		"sranco.tasks.weekly"
+#	],
+#	"monthly": [
+#		"sranco.tasks.monthly"
+#	],
 # }
 
 # Testing
@@ -175,14 +194,14 @@ app_license = "mit"
 # ------------------------------
 #
 # override_whitelisted_methods = {
-# 	"frappe.desk.doctype.event.event.get_events": "sranco.event.get_events"
+#	"frappe.desk.doctype.event.event.get_events": "sranco.event.get_events"
 # }
 #
 # each overriding function accepts a `data` argument;
 # generated from the base implementation of the doctype dashboard,
 # along with any modifications made in other Frappe apps
 # override_doctype_dashboards = {
-# 	"Task": "sranco.task.get_dashboard_data"
+#	"Task": "sranco.task.get_dashboard_data"
 # }
 
 # exempt linked doctypes from being automatically cancelled
@@ -208,37 +227,29 @@ app_license = "mit"
 # --------------------
 
 # user_data_fields = [
-# 	{
-# 		"doctype": "{doctype_1}",
-# 		"filter_by": "{filter_by}",
-# 		"redact_fields": ["{field_1}", "{field_2}"],
-# 		"partial": 1,
-# 	},
-# 	{
-# 		"doctype": "{doctype_2}",
-# 		"filter_by": "{filter_by}",
-# 		"partial": 1,
-# 	},
-# 	{
-# 		"doctype": "{doctype_3}",
-# 		"strict": False,
-# 	},
-# 	{
-# 		"doctype": "{doctype_4}"
-# 	}
+#	{
+#		"doctype": "{doctype_1}",
+#		"filter_by": "{filter_by}",
+#		"redact_fields": ["{field_1}", "{field_2}"],
+#		"partial": 1,
+#	},
+#	{
+#		"doctype": "{doctype_2}",
+#		"filter_by": "{filter_by}",
+#		"partial": 1,
+#	},
+#	{
+#		"doctype": "{doctype_3}",
+#		"strict": False,
+#	},
+#	{
+#		"doctype": "{doctype_4}"
+#	}
 # ]
 
 # Authentication and authorization
 # --------------------------------
 
 # auth_hooks = [
-# 	"sranco.auth.validate"
+#	"sranco.auth.validate"
 # ]
-
-# Automatically update python controller files with type annotations for this app.
-# export_python_type_annotations = True
-
-# default_log_clearing_doctypes = {
-# 	"Logging DocType Name": 30  # days to retain logs
-# }
-

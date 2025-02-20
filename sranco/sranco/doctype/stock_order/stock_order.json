@@ -1,0 +1,175 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "autoname": "format:STO-{MM}-{YY}-{#####}",
+ "creation": "2023-10-31 15:31:45.915595",
+ "default_view": "List",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "customer",
+  "customer_name",
+  "order_confirmation",
+  "order_confirmation_date",
+  "purchase_order",
+  "order_attach",
+  "column_break_poczo",
+  "date",
+  "gi_date",
+  "contact_person",
+  "section_break_1xsrt",
+  "items",
+  "section_break_ehraz",
+  "column_break_9xrsu",
+  "total_qty",
+  "column_break_jxikc",
+  "grand_total",
+  "section_break_namyu",
+  "terms_and_conditions",
+  "terms",
+  "amended_from"
+ ],
+ "fields": [
+  {
+   "fieldname": "customer",
+   "fieldtype": "Link",
+   "label": "Customer",
+   "options": "Customer"
+  },
+  {
+   "fetch_from": "customer.customer_name",
+   "fieldname": "customer_name",
+   "fieldtype": "Data",
+   "label": "Customer Name"
+  },
+  {
+   "fieldname": "order_confirmation",
+   "fieldtype": "Data",
+   "label": "Order Confirmation"
+  },
+  {
+   "fieldname": "order_attach",
+   "fieldtype": "Attach",
+   "label": "Order Attach"
+  },
+  {
+   "fieldname": "column_break_poczo",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "section_break_1xsrt",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "items",
+   "fieldtype": "Table",
+   "label": "Items",
+   "options": "Stock Order Items"
+  },
+  {
+   "fieldname": "amended_from",
+   "fieldtype": "Link",
+   "label": "Amended From",
+   "no_copy": 1,
+   "options": "Stock Order",
+   "print_hide": 1,
+   "read_only": 1
+  },
+  {
+   "allow_on_submit": 1,
+   "fieldname": "purchase_order",
+   "fieldtype": "Data",
+   "label": "Purchase Order",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_break_ehraz",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "column_break_9xrsu",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "column_break_jxikc",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "grand_total",
+   "fieldtype": "Currency",
+   "label": "Grand Total"
+  },
+  {
+   "fieldname": "total_qty",
+   "fieldtype": "Float",
+   "label": "Total Qty"
+  },
+  {
+   "fieldname": "section_break_namyu",
+   "fieldtype": "Tab Break",
+   "label": "Terms"
+  },
+  {
+   "fieldname": "terms_and_conditions",
+   "fieldtype": "Link",
+   "label": "Terms and Conditions",
+   "options": "Terms and Conditions"
+  },
+  {
+   "fetch_from": "terms_and_conditions.terms",
+   "fieldname": "terms",
+   "fieldtype": "Text Editor",
+   "label": "Terms"
+  },
+  {
+   "fieldname": "contact_person",
+   "fieldtype": "Link",
+   "label": "Contact Person",
+   "options": "Contact"
+  },
+  {
+   "fieldname": "gi_date",
+   "fieldtype": "Date",
+   "hidden": 1,
+   "label": "GI Date"
+  },
+  {
+   "fieldname": "date",
+   "fieldtype": "Date",
+   "label": "Date"
+  },
+  {
+   "fieldname": "order_confirmation_date",
+   "fieldtype": "Date",
+   "label": "Order Confirmation Date"
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "is_submittable": 1,
+ "links": [],
+ "modified": "2024-02-29 17:30:59.648929",
+ "modified_by": "Administrator",
+ "module": "Sranco",
+ "name": "Stock Order",
+ "naming_rule": "Expression",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

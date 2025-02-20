@@ -1,7 +1,7 @@
-## sranco
+## Sranco
 
-sranco
+customizations
 
 #### License
 
-mit
+MIT

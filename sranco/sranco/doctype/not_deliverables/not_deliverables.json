@@ -1,0 +1,103 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2023-10-26 00:23:23.551122",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "item_code",
+  "tn_number",
+  "shape",
+  "diameter",
+  "thickness",
+  "bore",
+  "column_break_cwb58",
+  "speed",
+  "attach_drawing",
+  "more_dimensions",
+  "specification"
+ ],
+ "fields": [
+  {
+   "columns": 2,
+   "fieldname": "item_code",
+   "fieldtype": "Data",
+   "label": "Item Code",
+   "read_only": 1
+  },
+  {
+   "columns": 2,
+   "fieldname": "shape",
+   "fieldtype": "Data",
+   "label": "Shape",
+   "read_only": 1
+  },
+  {
+   "columns": 2,
+   "fieldname": "diameter",
+   "fieldtype": "Data",
+   "label": "Diameter",
+   "read_only": 1
+  },
+  {
+   "columns": 2,
+   "fieldname": "thickness",
+   "fieldtype": "Data",
+   "label": "Thickness",
+   "read_only": 1
+  },
+  {
+   "fieldname": "bore",
+   "fieldtype": "Data",
+   "label": "Bore",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_cwb58",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "speed",
+   "fieldtype": "Data",
+   "label": "Speed",
+   "read_only": 1
+  },
+  {
+   "fieldname": "attach_drawing",
+   "fieldtype": "Attach",
+   "label": "Attach Drawing",
+   "read_only": 1
+  },
+  {
+   "fieldname": "more_dimensions",
+   "fieldtype": "Data",
+   "label": "More Dimensions",
+   "read_only": 1
+  },
+  {
+   "columns": 2,
+   "fieldname": "specification",
+   "fieldtype": "Data",
+   "label": "Specification",
+   "read_only": 1
+  },
+  {
+   "fieldname": "tn_number",
+   "fieldtype": "Data",
+   "label": "TN Number",
+   "read_only": 1
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "istable": 1,
+ "links": [],
+ "modified": "2023-10-30 02:22:46.969703",
+ "modified_by": "Administrator",
+ "module": "Sranco",
+ "name": "Not Deliverables",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}
