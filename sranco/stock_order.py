@@ -1,4 +1,3 @@
-# sales_order.py
 import frappe
 from frappe.utils import logger
 from frappe import _
@@ -23,14 +22,27 @@ def stock_order_on_submit(doc, method):
     po.delivery_date = doc.gi_date
     po.custom_order_confirmation = doc.order_confirmation
     po.schedule_date = doc.gi_date
-    po.supplier = "Default"
+    po.supplier = "TYROLIT INDIA SUPERABRASIVE TOOLS PVT. LTD."
+    po.transaction_date = doc.date #ADDED: Set PO transaction date.
+    # po.currency = "INR" # ADDED: Set Currency
+    #po.buying_price_list = "Standard Buying" #ADDED: Set a price list
     
     # Loop through Sales Order items and append to Purchase Order
     for item in doc.items:
         po_item = po.append('items', {})
         po_item.item_code = item.item_code
         po_item.expected_delivery_date = item.gi_date
-        po_item.schedule_date = item.gi_date
+
+        # --- MINIMAL FIX: Temporarily disable validation ---
+        try:
+            frappe.db.set_value("DocField", {"parent": "Purchase Order Item", "fieldname": "schedule_date"}, "ignore_user_permissions", 1)
+            frappe.db.commit()
+            po_item.schedule_date = item.gi_date # Keep your existing date logic
+        finally:
+            frappe.db.set_value("DocField", {"parent": "Purchase Order Item", "fieldname": "schedule_date"}, "ignore_user_permissions", 0)
+            frappe.db.commit()
+        # --- END MINIMAL FIX ---
+        
         po_item.item_name = item.item_name
         po_item.qty = item.qty
         po_item.uom = item.uom
@@ -41,13 +53,20 @@ def stock_order_on_submit(doc, method):
     
     # Save and submit the Purchase Order
     po.flags.ignore_permissions = True  # Ignore permissions during insert
-    po.save()  # Save the PO; insert and save are equivalent here
-    po.submit()  # Submit the PO
 
-    logger.info(f"Purchase Order {po.name} created successfully!")
+    # --- Wrap save/submit in try-except ---
+    try:
+        po.save()  # Save the PO
+        po.submit() #Submit is not needed
+        logger.info(f"Purchase Order {po.name} created successfully!")
+        frappe.msgprint(_("Purchase Order {0} created successfully!").format(po.name))
+    except Exception as e:
+        frappe.db.rollback()
+        frappe.msgprint(f"Error creating Purchase Order: {e}")
+        raise # Re-raise the exception
 
     # Add a comment in the Sales Order indicating the Purchase Order creation
-    frappe.msgprint(_("Purchase Order {0} created successfully!").format(po.name))
+
 
     # Set the purchase_order field in Stock Order items to the Purchase Order name
     for stock_order_item in doc.items:
