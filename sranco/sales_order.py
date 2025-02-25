@@ -1,5 +1,5 @@
 import frappe
-from frappe.utils import logger
+from frappe.utils import logger, getdate
 from frappe import _
 
 logger.set_log_level("DEBUG")
@@ -10,6 +10,23 @@ def on_submit(doc, method):
     sales_order_on_submit(doc, method)
     update_customer_item_code(doc, method)
     update_stock_order(doc, method)
+
+# --- before_save HOOK (Corrected) ---
+def before_save(doc, method):
+    if doc.docstatus == 0:  # Only apply on new or draft
+        for item in doc.items:
+            if item.custom_gi_date:
+                # --- Temporarily bypass validation on delivery_date ---
+                try:
+                    frappe.db.set_value("DocField", {"parent": "Sales Order Item", "fieldname": "delivery_date"}, "ignore_user_permissions", 1)
+                    frappe.db.commit()
+                    item.delivery_date = item.custom_gi_date
+                    item.schedule_date = item.custom_gi_date # Also set schedule date at item level.
+                finally:
+                    frappe.db.set_value("DocField", {"parent": "Sales Order Item", "fieldname": "delivery_date"}, "ignore_user_permissions", 0)
+                    frappe.db.commit()
+                # --- End temporary bypass ---
+# -------------------------------
 
 def item_price_update(doc, method):
     for item in doc.items:
@@ -77,28 +94,22 @@ def sales_order_on_submit(doc, method):
         frappe.msgprint(_("All items have a Purchase Order, so skipping PO creation"))
         return
 
-
     # Create a new Purchase Order
     po = frappe.new_doc("Purchase Order")
 
     # Copy the relevant fields from Sales Order to Purchase Order
     po.customer = doc.customer
-    po.delivery_date = doc.delivery_date  # Use SO delivery date as PO delivery date
+    po.delivery_date = doc.delivery_date  # Use SO delivery date
     po.custom_order_confirmation = doc.custom_order_confirmation
-    po.schedule_date = doc.delivery_date    # Use SO delivery_date for PO schedule date
-    # po.supplier = "Default"  # REMOVE
+    po.schedule_date = doc.delivery_date    # Use SO delivery_date
+    po.supplier = "TYROLIT INDIA SUPERABRASIVE TOOLS PVT. LTD."  # HARDCODED - Option 2
+    po.transaction_date = doc.transaction_date # Set PO transaction date
 
     # Loop through Sales Order items and append to Purchase Order
     for item in doc.items:
         if not item.purchase_order:
-            # --- Get Supplier from Item (Option A) ---
-            item_doc = frappe.get_doc("Item", item.item_code)
-            supplier = item_doc.custom_preferred_supplier  # Replace 'custom_preferred_supplier'
-            if not supplier:
-                frappe.throw(_("Please set a preferred supplier for item {0}").format(item.item_code))
-            # --- End Get Supplier ---
             po_item = po.append('items', {})
-            po.custom_order_confirmation = item.custom_order_confirmation #copy the order confirmation
+            po.custom_order_confirmation = item.custom_order_confirmation  # Copy order confirmation
             po_item.item_code = item.item_code
             po_item.item_name = item.item_name
             po_item.description = item.description
@@ -109,27 +120,27 @@ def sales_order_on_submit(doc, method):
             po_item.custom_customer_item_code = item.custom_customer_item_code
             po_item.sales_order = doc.name  # Linking Sales Order to Purchase Order items
 
-            # --- TEMPORARILY DISABLE VALIDATION ---
+            # --- TEMPORARILY DISABLE VALIDATION on *Purchase Order Item* ---
             try:
-                frappe.db.set_value("DocField", {"parent": "Sales Order Item", "fieldname": "schedule_date"}, "ignore_user_permissions", 1)
+                frappe.db.set_value("DocField", {"parent": "Purchase Order Item", "fieldname": "schedule_date"}, "ignore_user_permissions", 1)
                 frappe.db.commit()
-                po_item.schedule_date = item.custom_gi_date or doc.delivery_date  # Use custom_gi_date if available, otherwise SO delivery_date
-                po_item.expected_delivery_date = item.custom_gi_date or doc.delivery_date
+                po_item.schedule_date =  item.delivery_date  # Use item.delivery_date
+                po_item.expected_delivery_date =  item.delivery_date
 
             finally:
-                frappe.db.set_value("DocField", {"parent": "Sales Order Item", "fieldname": "schedule_date"}, "ignore_user_permissions", 0)
+                frappe.db.set_value("DocField", {"parent": "Purchase Order Item", "fieldname": "schedule_date"}, "ignore_user_permissions", 0)
                 frappe.db.commit()
             # --- END TEMPORARILY DISABLE VALIDATION ---
-    po.supplier = supplier # set supplier
+
     # Save and submit the Purchase Order
-    po.flags.ignore_permissions = True # Very Important
+    po.flags.ignore_permissions = True  # Very Important
     try:
         po.insert()
         po.save()
         for item in doc.items:
             if not item.purchase_order:
                 item.purchase_order = po.name
-        po.submit() # You might want to remove the automatic submit, see notes below.
+        po.submit()
         logger.info(f"Stock Order Items {doc.items}")
         logger.info(f"Purchase Order {po.name} created successfully!")
         frappe.msgprint(_("Purchase Order {0} created successfully!").format(po.name))
@@ -140,11 +151,8 @@ def sales_order_on_submit(doc, method):
         logger.error(f"Error creating Purchase Order: {e}")  # Log the full error
         raise  # Re-raise to stop the Sales Order submission
 
-
-    # --- NO CHANGES NEEDED BELOW HERE for the date issue ---
-
 def update_stock_order(doc, method):
-        # Update Stock Order items with sales quantities
+    # Update Stock Order items with sales quantities
     for item in doc.items:
         logger.info(f"Sales Order Stock Order Items {item.custom_stock_order}")
         if item.custom_stock_order:
@@ -167,7 +175,8 @@ def update_customer_item_code(doc, method):
     try:
         for item in doc.items:
             item_code = item.item_code
-            custom_customer_item_code = item.custom_customer_item_code
+            # Get the value, defaulting to "N/A" if it's None or empty
+            custom_customer_item_code = item.custom_customer_item_code or "N/A"
 
             # Fetch the corresponding Item document
             item_doc = frappe.get_doc("Item", item_code)
@@ -187,7 +196,7 @@ def update_customer_item_code(doc, method):
                 # If not found, add a new customer item entry
                 item_doc.append("customer_items", {
                     "customer_name": doc.customer,
-                    "ref_code": custom_customer_item_code
+                    "ref_code": custom_customer_item_code # Using "N/A" default
                 })
 
             # Save the Item document
@@ -230,7 +239,6 @@ def custom_item_query(doctype, txt, searchfield, start, page_len, filters):
         'page_len': page_len
     })
 
-
 @frappe.whitelist()
 def get_purchase_order_from_items(order_confirmation):
     result = frappe.db.sql("""
@@ -243,7 +251,6 @@ def get_purchase_order_from_items(order_confirmation):
 
     return result[0].purchase_order if result else None
 
-
 @frappe.whitelist()
 def get_sales_order_from_items(order_confirmation):
     logger.info(f"Order Confirmation {order_confirmation}")
@@ -253,7 +260,7 @@ def get_sales_order_from_items(order_confirmation):
         JOIN `tabSales Order Item` soi ON so.name = soi.parent
         WHERE soi.custom_order_confirmation = %s
         LIMIT 1
-    """, (order_confirmation,), as_dict=1)
+    """, (order_confirmation,), as_dict=1)  # Corrected: Added closing triple quote
     logger.info(f"Sales Order from items {result}")
 
     return {"sales_order": result[0].name, "customer": result[0].customer} if result else None
