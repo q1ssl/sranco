@@ -157,3 +157,52 @@ def custom_stock_order_query(doctype, txt, searchfield, start, page_len, filters
         'start': start,
         'page_len': page_len
     })
+
+@frappe.whitelist()
+def delink_purchase_order(stock_order_name):
+    """De-links the Purchase Order from the Stock Order (called from client-side)."""
+
+    doc = frappe.get_doc("Stock Order", stock_order_name)
+
+    if not doc.purchase_order:
+        frappe.msgprint(_("No Purchase Order is linked to this Stock Order."))
+        return  # Exit early if no PO is linked
+
+    if doc.docstatus == 2:
+        frappe.msgprint(_("Cannot de-link from a cancelled Stock Order."))
+        return
+
+    po_name = doc.purchase_order
+
+    # --- Clear Link on Stock Order ---
+    frappe.db.set_value("Stock Order", stock_order_name, "purchase_order", None)
+    frappe.db.commit()
+    doc.reload() #Important
+    logger.debug(f"After clearing Stock Order link: doc.purchase_order = {doc.purchase_order}")
+
+
+    # --- Clear Link on Purchase Order (if it exists) ---
+    if po_name: # Check PO name.
+        try:
+            # We are checking, if the field exists or not.
+            if frappe.db.has_column("Purchase Order", "custom_stock_order"):
+                frappe.db.set_value("Purchase Order", po_name, "custom_stock_order", None)
+                frappe.db.commit()
+            else:
+                logger.warning(f"Purchase Order {po_name} does not have a custom_stock_order field.")
+                frappe.msgprint(
+                    f"Warning: Purchase Order {po_name} does not have a custom link back to the Stock Order. De-linking may be incomplete.",
+                    indicator="orange"
+                )
+
+        except frappe.DoesNotExistError:
+            logger.warning(f"Purchase Order {po_name} not found.")
+            frappe.msgprint(f"Warning: Purchase Order {po_name} not found, but Stock Order link was cleared.", indicator="orange")
+            return  # Return, don't throw
+
+        except Exception as e:
+            frappe.db.rollback()
+            logger.error(f"Error clearing PO link: {e}")
+            frappe.throw(f"Error de-linking Purchase Order: {e}")
+
+    frappe.msgprint(_("Purchase Order de-linked successfully."), indicator="green")

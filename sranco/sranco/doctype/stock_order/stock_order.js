@@ -414,3 +414,33 @@ function get_item_price_data(frm, cdt, cdn, row) {
         },
     });
 }
+
+frappe.ui.form.on("Stock Order", {
+    refresh(frm) {
+        // Add the button to the Stock Order FORM view
+        if (frm.doc.purchase_order && (frm.doc.docstatus === 0 || frm.doc.docstatus === 1)) {
+            frm.add_custom_button(__("De-link Purchase Order"), function() {
+                frappe.confirm(
+                    __("Are you sure you want to de-link Purchase Order {0}?", [frm.doc.purchase_order]),
+                    () => { // Yes
+                        frappe.call({
+                            method: "sranco.stock_order.delink_purchase_order", // Correct path
+                            args: {
+                                stock_order_name: frm.doc.name  // Pass Stock Order name
+                            },
+                            callback: function(r) {
+                                if (r.message) {
+                                    frappe.msgprint(r.message);
+                                    frm.reload_doc(); // Refresh the form
+                                }
+                            }
+                        });
+                    },
+                    () => { // No (optional)
+                        frappe.msgprint(__("De-linking cancelled."));
+                    }
+                );
+            }, __("Actions")); // Add to Actions menu
+        }
+    }
+});
