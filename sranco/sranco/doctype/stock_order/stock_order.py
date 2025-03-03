@@ -1,4 +1,4 @@
-# Copyright (c) 2023, Dinesh Panchal and contributors
+# Copyright (c) 2025, Amit Kumar and contributors
 # For license information, please see license.txt
 
 import frappe
@@ -46,6 +46,3 @@ class StockOrder(Document):
     #     po.insert()
     #     po.save()
     #     po.submit()
-
-    #     # Add a comment in the Stock Order indicating the Purchase Order creation
-    #     frappe.msgprint(_("Purchase Order {0} created successfully!").format(po.name))

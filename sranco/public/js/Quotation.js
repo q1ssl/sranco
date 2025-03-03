@@ -381,10 +381,10 @@ frappe.ui.form.on("Quotation Item", {
                                 );
                                 if (response.message) {
                                     // print the message
-                                    frappe.msgprint(
-                                        "New Item Created" +
-                                            response.message.item_code
-                                    );
+                                    //frappe.msgprint(
+                                      //  "New Item Created" +
+                                        //    response.message.item_code
+                                    //);
                                     frappe.model.set_value(
                                         cdt,
                                         cdn,
@@ -398,10 +398,10 @@ frappe.ui.form.on("Quotation Item", {
                                         response.message.item_name
                                     );
                                     frm.refresh_field("items");
-                                    frappe.msgprint(
-                                        "New Item Created " +
-                                            response.message.item_code
-                                    );
+                                    //frappe.msgprint(
+                                      //  "New Item Created " +
+                                        //    response.message.item_code
+                                    //);
                                 }
                             },
                         });

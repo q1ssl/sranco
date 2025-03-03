@@ -55,6 +55,57 @@ frappe.ui.form.on("Stock Order", {
         frm.refresh_field("items");
         // frm.save();
     },
+    
+    // Add custom cancellation handling
+    before_cancel: function(frm) {
+        // Check if there are linked Purchase Orders
+        frappe.call({
+            method: "frappe.client.get_list",
+            args: {
+                doctype: "Purchase Order",
+                filters: {
+                    stock_order: frm.doc.name,
+                    docstatus: 1 // Submitted documents
+                },
+                fields: ["name"]
+            },
+            callback: function(r) {
+                if (r.message && r.message.length > 0) {
+                    // Found linked Purchase Orders
+                    let purchase_orders = r.message.map(po => po.name).join(", ");
+                    
+                    frappe.confirm(
+                        __("This Stock Order is linked to Purchase Order(s): {0}. These will also be cancelled. Continue?", [purchase_orders]),
+                        function() {
+                            // User confirmed, use our utility function
+                            frappe.call({
+                                method: "sranco.stock_order.cancel_stock_order_and_linked_docs",
+                                args: {
+                                    stock_order: frm.doc.name
+                                },
+                                callback: function(r) {
+                                    if (r.message && r.message.success) {
+                                        frappe.msgprint(__("Stock Order and linked documents cancelled successfully."));
+                                        frm.refresh();
+                                    } else {
+                                        frappe.msgprint(__("Failed to cancel linked documents. Error: {0}", 
+                                            [r.message ? r.message.error : "Unknown error"]));
+                                    }
+                                }
+                            });
+                        },
+                        function() {
+                            // User declined, do nothing
+                            frappe.validated = false;
+                        }
+                    );
+                    
+                    // Prevent the standard cancellation process
+                    frappe.validated = false;
+                }
+            }
+        });
+    }
 });
 
 frappe.ui.form.on("Stock Order Items", {
@@ -414,33 +465,3 @@ function get_item_price_data(frm, cdt, cdn, row) {
         },
     });
 }
-
-frappe.ui.form.on("Stock Order", {
-    refresh(frm) {
-        // Add the button to the Stock Order FORM view
-        if (frm.doc.purchase_order && (frm.doc.docstatus === 0 || frm.doc.docstatus === 1)) {
-            frm.add_custom_button(__("De-link Purchase Order"), function() {
-                frappe.confirm(
-                    __("Are you sure you want to de-link Purchase Order {0}?", [frm.doc.purchase_order]),
-                    () => { // Yes
-                        frappe.call({
-                            method: "sranco.stock_order.delink_purchase_order", // Correct path
-                            args: {
-                                stock_order_name: frm.doc.name  // Pass Stock Order name
-                            },
-                            callback: function(r) {
-                                if (r.message) {
-                                    frappe.msgprint(r.message);
-                                    frm.reload_doc(); // Refresh the form
-                                }
-                            }
-                        });
-                    },
-                    () => { // No (optional)
-                        frappe.msgprint(__("De-linking cancelled."));
-                    }
-                );
-            }, __("Actions")); // Add to Actions menu
-        }
-    }
-});

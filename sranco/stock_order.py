@@ -1,10 +1,51 @@
 import frappe
 from frappe.utils import logger
 from frappe import _
+from frappe.model.document import Document
 
 logger.set_log_level("DEBUG")
 logger = frappe.logger("Sranco_logs", allow_site=True, file_count=1)
 
+# =============================================================================
+# Stock Order DocType Controller Class
+# =============================================================================
+class StockOrder(Document):
+    def on_cancel(self):
+        """
+        Handle cancellation of Stock Order - break circular dependency with Purchase Order
+        """
+        # Check if this is a forced cancellation (ignore links flag set)
+        if hasattr(self.flags, 'ignore_links') and self.flags.ignore_links:
+            return
+            
+        # Find any linked Purchase Orders
+        purchase_orders = frappe.get_all(
+            "Purchase Order",
+            filters={"stock_order": self.name, "docstatus": 1},
+            fields=["name"]
+        )
+        
+        if purchase_orders:
+            # We have linked POs - try to cancel them first
+            for po in purchase_orders:
+                po_doc = frappe.get_doc("Purchase Order", po.name)
+                
+                # Set a flag to prevent circular validation
+                po_doc.flags.ignore_links = True
+                po_doc.flags.from_stock_order = True
+                
+                try:
+                    # Try to cancel the PO
+                    po_doc.cancel()
+                    frappe.db.commit()
+                except Exception as e:
+                    frappe.db.rollback()
+                    frappe.log_error(f"Failed to cancel Purchase Order {po.name}: {str(e)}")
+                    frappe.throw(_(f"Could not cancel linked Purchase Order {po.name}. Please cancel it manually first."))
+
+# =============================================================================
+# Hooks
+# =============================================================================
 def on_submit(doc, method):
     stock_order_on_submit(doc, method)
     
@@ -24,6 +65,7 @@ def stock_order_on_submit(doc, method):
     po.schedule_date = doc.gi_date
     po.supplier = "TYROLIT INDIA SUPERABRASIVE TOOLS PVT. LTD."
     po.transaction_date = doc.date #ADDED: Set PO transaction date.
+    po.stock_order = doc.name  # Link back to Stock Order
     # po.currency = "INR" # ADDED: Set Currency
     #po.buying_price_list = "Standard Buying" #ADDED: Set a price list
     
@@ -129,8 +171,6 @@ def get_qty_from_stock_order(tn_number, required_qty):
         return None
 
 
-
-
 @frappe.whitelist()
 @frappe.validate_and_sanitize_search_inputs
 def custom_stock_order_query(doctype, txt, searchfield, start, page_len, filters):
@@ -206,3 +246,25 @@ def delink_purchase_order(stock_order_name):
             frappe.throw(f"Error de-linking Purchase Order: {e}")
 
     frappe.msgprint(_("Purchase Order de-linked successfully."), indicator="green")
+
+
+@frappe.whitelist()
+def cancel_stock_order_and_linked_docs(stock_order):
+    """
+    Utility function to cancel a Stock Order and its linked documents
+    """
+    try:
+        doc = frappe.get_doc("Stock Order", stock_order)
+        
+        # Set flag to ignore linked document validation
+        doc.flags.ignore_links = True
+        
+        # Cancel the document
+        doc.cancel()
+        frappe.db.commit()
+        
+        return {"success": True}
+    except Exception as e:
+        frappe.db.rollback()
+        frappe.log_error(f"Error cancelling Stock Order {stock_order}: {str(e)}")
+        return {"success": False, "error": str(e)}
