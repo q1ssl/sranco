@@ -87,6 +87,7 @@ frappe.ui.form.on("Quotation Item", {
         calc_total_rep_commission(frm);
         calc_total_snc_commission(frm);
     },
+    
     custom_not_a_tyrolit_specification: function (frm, cdt, cdn) {
         var row = locals[cdt][cdn];
         manage_not_deliverables_row(frm, row);
@@ -97,40 +98,64 @@ frappe.ui.form.on("Quotation Item", {
             // frm.fields_dict["items"].grid.toggle_reqd("custom_tn_number", true);
         }
     },
+    
+    // ================== COMMISSION CALCULATION TRIGGERS ==================
+    
+    // SNC Commission triggers
     custom_snc_commission_: function (frm, cdt, cdn) {
         update_snc_commission(frm, cdt, cdn);
         calc_total_rep_commission(frm);
         calc_total_snc_commission(frm);
     },
-    custom_rep_commission_: function (frm, cdt, cdn) {
-        update_rep_commission(frm, cdt, cdn);
-        calc_total_rep_commission(frm);
-        calc_total_snc_commission(frm);
-    },
-    custom_rep_commission_amount_per_qty: function (frm, cdt, cdn) {
-        update_rep_commission(frm, cdt, cdn);
-        calc_total_rep_commission(frm);
-        calc_total_snc_commission(frm);
-    },
+    
     custom_snc_commission_amount_per_qty: function (frm, cdt, cdn) {
         update_snc_commission(frm, cdt, cdn);
         calc_total_rep_commission(frm);
         calc_total_snc_commission(frm);
     },
-    custom_rep_commission_type: function (frm, cdt, cdn) {
-        update_rep_commission(frm, cdt, cdn);
-        calc_total_rep_commission(frm);
-    },
+    
     custom_snc_commission_type: function (frm, cdt, cdn) {
         update_snc_commission(frm, cdt, cdn);
         calc_total_snc_commission(frm);
     },
+    
+    // Representative Commission triggers
+    custom_rep_commission_: function (frm, cdt, cdn) {
+        update_rep_commission(frm, cdt, cdn);
+        calc_total_rep_commission(frm);
+        calc_total_snc_commission(frm);
+    },
+    
+    custom_rep_commission_amount_per_qty: function (frm, cdt, cdn) {
+        update_rep_commission(frm, cdt, cdn);
+        calc_total_rep_commission(frm);
+        calc_total_snc_commission(frm);
+    },
+    
+    custom_rep_commission_type: function (frm, cdt, cdn) {
+        update_rep_commission(frm, cdt, cdn);
+        calc_total_rep_commission(frm);
+    },
+    
+    // ================== QUANTITY & RATE TRIGGERS ==================
+    
     qty: function (frm, cdt, cdn) {
         update_rep_commission(frm, cdt, cdn);
         update_snc_commission(frm, cdt, cdn);
         calc_total_rep_commission(frm);
         calc_total_snc_commission(frm);
     },
+    
+    // FIXED: Add rate trigger to recalculate commissions when rate changes
+    rate: function (frm, cdt, cdn) {
+        update_rep_commission(frm, cdt, cdn);
+        update_snc_commission(frm, cdt, cdn);
+        calc_total_rep_commission(frm);
+        calc_total_snc_commission(frm);
+    },
+    
+    // ================== ITEM SELECTION & DATA LOADING ==================
+    
     item_code: function (frm, cdt, cdn) {
         var row = locals[cdt][cdn];
 
@@ -213,6 +238,15 @@ frappe.ui.form.on("Quotation Item", {
                             "custom_has_representative_commission",
                             r.message[0].custom_has_representative_commission
                         );
+                        
+                        // FIXED: Trigger commission calculations after setting values
+                        setTimeout(function() {
+                            update_snc_commission(frm, cdt, cdn);
+                            update_rep_commission(frm, cdt, cdn);
+                            calc_total_rep_commission(frm);
+                            calc_total_snc_commission(frm);
+                        }, 100);
+                        
                         frm.refresh_field("items");
                     }
                 },
@@ -313,6 +347,7 @@ frappe.ui.form.on("Quotation Item", {
                 },
             });
         }
+        
         if (row.item_code && frm.doc.party_name) {
             // Ensure item_code and customer are present
             frappe.call({
@@ -334,6 +369,7 @@ frappe.ui.form.on("Quotation Item", {
             });
         }
     },
+    
     custom_tn_number: function (frm, cdt, cdn) {
         // look for the item which has matching custom_tn_number and if found set the item_code and item_name
         var row = locals[cdt][cdn];
@@ -410,7 +446,19 @@ frappe.ui.form.on("Quotation Item", {
             });
         }
     },
+    
+    // ================== ADDITIONAL TRIGGERS ==================
+    
+    // Trigger commission recalculation when tyrolit rate changes
+    custom_tyrolit_rate: function (frm, cdt, cdn) {
+        update_rep_commission(frm, cdt, cdn);
+        update_snc_commission(frm, cdt, cdn);
+        calc_total_rep_commission(frm);
+        calc_total_snc_commission(frm);
+    },
 });
+
+// ================== UTILITY FUNCTIONS ==================
 
 function manage_not_deliverables_row(frm, item) {
     if (item.custom_not_a_tyrolit_specification == 1) {
@@ -456,12 +504,16 @@ function copy_custom_fields(source, target) {
     }
 }
 
+// ================== COMMISSION CALCULATION FUNCTIONS ==================
+
 function calc_total_rep_commission(frm) {
     // calculate total representative commission and set it to custom_total_representative_commission field
     var total_rep_commission = 0;
-    frm.doc.items.forEach(function (item) {
-        total_rep_commission += item.custom_rep_commission_amount;
-    });
+    if (frm.doc.items) {
+        frm.doc.items.forEach(function (item) {
+            total_rep_commission += item.custom_rep_commission_amount || 0;
+        });
+    }
     frm.set_value(
         "custom_total_representative_commission",
         total_rep_commission
@@ -472,35 +524,42 @@ function calc_total_rep_commission(frm) {
 function calc_total_snc_commission(frm) {
     // calculate total snc commission and set it to custom_total_snc_commission field
     var total_snc_commission = 0;
-    frm.doc.items.forEach(function (item) {
-        total_snc_commission += item.custom_snc_commission_amount;
-    });
+    if (frm.doc.items) {
+        frm.doc.items.forEach(function (item) {
+            total_snc_commission += item.custom_snc_commission_amount || 0;
+        });
+    }
     frm.set_value("custom_total_snc_commission", total_snc_commission);
     frm.refresh_field("custom_total_snc_commission");
 }
 
+// FIXED: Updated commission calculation functions
 function update_rep_commission(frm, cdt, cdn) {
     var row = locals[cdt][cdn];
-    if (row.custom_rep_commission_type == "Percent") {
-        row.custom_rep_commission_amount =
-            (row.custom_rep_commission_ * row.rate * row.qty) / 100;
+    
+    if (row.custom_rep_commission_type == "Percent" && row.custom_rep_commission_ && row.rate) {
+        // FIXED: First calculate per-quantity amount, then total amount
+        row.custom_rep_commission_amount_per_qty = (row.custom_rep_commission_ * row.rate) / 100;
+        row.custom_rep_commission_amount = row.custom_rep_commission_amount_per_qty * (row.qty || 1);
         frm.refresh_field("items");
-    } else if (row.custom_rep_commission_type == "Amount") {
-        row.custom_rep_commission_amount =
-            row.custom_rep_commission_amount_per_qty * row.qty;
+    } else if (row.custom_rep_commission_type == "Amount" && row.custom_rep_commission_amount_per_qty) {
+        // For Amount type, per-qty is entered manually, calculate total
+        row.custom_rep_commission_amount = row.custom_rep_commission_amount_per_qty * (row.qty || 1);
         frm.refresh_field("items");
     }
 }
 
 function update_snc_commission(frm, cdt, cdn) {
     var row = locals[cdt][cdn];
-    if (row.custom_snc_commission_type == "Percent") {
-        row.custom_snc_commission_amount =
-            (row.custom_snc_commission_ * row.rate * row.qty) / 100;
+    
+    if (row.custom_snc_commission_type == "Percent" && row.custom_snc_commission_ && row.rate) {
+        // FIXED: First calculate per-quantity amount, then total amount
+        row.custom_snc_commission_amount_per_qty = (row.custom_snc_commission_ * row.rate) / 100;
+        row.custom_snc_commission_amount = row.custom_snc_commission_amount_per_qty * (row.qty || 1);
         frm.refresh_field("items");
-    } else if (row.custom_snc_commission_type == "Amount") {
-        row.custom_snc_commission_amount =
-            row.custom_snc_commission_amount_per_qty * row.qty;
+    } else if (row.custom_snc_commission_type == "Amount" && row.custom_snc_commission_amount_per_qty) {
+        // For Amount type, per-qty is entered manually, calculate total
+        row.custom_snc_commission_amount = row.custom_snc_commission_amount_per_qty * (row.qty || 1);
         frm.refresh_field("items");
     }
 }

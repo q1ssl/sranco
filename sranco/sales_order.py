@@ -10,6 +10,8 @@ def on_submit(doc, method):
     sales_order_on_submit(doc, method)
     update_customer_item_code(doc, method)
     update_stock_order(doc, method)
+    # NEW: Update Standard Buying Item Prices after everything else is done
+    update_standard_buying_item_prices(doc, method)
 
 # --- before_save HOOK (Corrected) ---
 def before_save(doc, method):
@@ -29,35 +31,69 @@ def before_save(doc, method):
 # -------------------------------
 
 def item_price_update(doc, method):
+    """
+    Updates or creates Item Price records for Standard Selling price list.
+    FIXED: Properly updates both custom_customer_item_code and custom_customer_code fields.
+    """
     for item in doc.items:
-        logger.info(f"Item {item.item_code} with rate {item.rate} and customer {doc.customer}")
-        item_price = frappe.db.exists('Item Price', {'item_code': item.item_code, 'price_list': 'Standard Selling', 'customer': doc.customer})
-        logger.info(f"Item Price {item_price} exists")
+        logger.info(f"Processing Item {item.item_code} with rate {item.rate} and customer {doc.customer}")
+        
+        # Check if Item Price exists for this item-customer combination
+        item_price = frappe.db.exists('Item Price', {
+            'item_code': item.item_code, 
+            'price_list': 'Standard Selling', 
+            'customer': doc.customer
+        })
+        logger.info(f"Standard Selling Item Price {item_price} exists: {bool(item_price)}")
 
         if item_price:
-            logger.info(f"Item Price in if condition {item_price} exists")
+            # Update existing Item Price
+            logger.info(f"Updating existing Standard Selling Item Price {item_price}")
             existing_item_price = frappe.get_doc('Item Price', item_price)
+            
+            # Update rate if different
             if round(existing_item_price.price_list_rate, 2) != round(item.rate, 2):
                 existing_item_price.price_list_rate = item.rate
-                # Use setattr for cleaner updates
-                for field in ['custom_snc_commission_type', 'custom_snc_commission_',
-                              'custom_snc_commission_amount', 'custom_snc_commission_lumpsum',
-                              'custom_has_representative_commission', 'custom_representative',
-                              'custom_rep_commission_type', 'custom_rep_commission_',
-                              'custom_rep_commission_amount']:
-                    if hasattr(item, field):  # Check if the field exists on the item
-                        setattr(existing_item_price, field, getattr(item, field))
-                if not item.custom_snc_commission_:
-                    existing_item_price.custom_snc_commission_amount = item.custom_snc_commission_amount_per_qty
-                    existing_item_price.custom_snc_commission_lumpsum = item.custom_snc_commission_amount_per_qty
-                if not item.custom_rep_commission_:
-                    existing_item_price.custom_rep_commission_amount = item.custom_rep_commission_amount_per_qty
+            
+            # Update customer information - ENSURE THIS IS ALWAYS SET
+            existing_item_price.customer = doc.customer
+            existing_item_price.custom_customer_name = doc.customer_name
+            
+            # FIXED: Always update BOTH customer item code fields from sales order item
+            if hasattr(item, 'custom_customer_item_code'):
+                customer_item_code = item.custom_customer_item_code or "N/A"
+                existing_item_price.custom_customer_item_code = customer_item_code
+                # FIXED: Also update the custom_customer_code field (Small Text field)
+                existing_item_price.custom_customer_code = customer_item_code
+                logger.info(f"Updated customer item codes to: {customer_item_code}")
+            
+            # Update commission fields
+            commission_fields = [
+                'custom_snc_commission_type', 'custom_snc_commission_',
+                'custom_has_representative_commission', 'custom_representative',
+                'custom_rep_commission_type', 'custom_rep_commission_'
+            ]
+            for field in commission_fields:
+                if hasattr(item, field):
+                    setattr(existing_item_price, field, getattr(item, field))
+            
+            # FIXED: Always use per-quantity amounts for commission
+            if hasattr(item, 'custom_snc_commission_amount_per_qty'):
+                existing_item_price.custom_snc_commission_amount = item.custom_snc_commission_amount_per_qty
+                existing_item_price.custom_snc_commission_lumpsum = item.custom_snc_commission_amount_per_qty
+                logger.info(f"Set SNC commission amount to per-qty value: {item.custom_snc_commission_amount_per_qty}")
+            
+            if hasattr(item, 'custom_rep_commission_amount_per_qty'):
+                existing_item_price.custom_rep_commission_amount = item.custom_rep_commission_amount_per_qty
+                logger.info(f"Set Rep commission amount to per-qty value: {item.custom_rep_commission_amount_per_qty}")
 
-                logger.info(f"Updating Item Price {existing_item_price.item_code} with rate {item.rate}")
-                frappe.msgprint(f"Updated Item Price {existing_item_price.item_code} with rate {item.rate}")
-                existing_item_price.save()
+            existing_item_price.save()
+            logger.info(f"Successfully updated Standard Selling Item Price {existing_item_price.item_code}")
+            frappe.msgprint(f"Updated Standard Selling Item Price {existing_item_price.item_code} with customer code and rate {item.rate}")
+            
         else:
-            logger.info(f"Item Price in else condition {item_price} exists")
+            # Create new Item Price
+            logger.info(f"Creating new Standard Selling Item Price for {item.item_code}")
             new_item_price = frappe.new_doc('Item Price')
             new_item_price.price_list = 'Standard Selling'
             new_item_price.item_code = item.item_code
@@ -65,22 +101,98 @@ def item_price_update(doc, method):
             new_item_price.custom_customer_name = doc.customer_name
             new_item_price.uom = item.uom
             new_item_price.price_list_rate = item.rate
-            # Use setattr here as well
-            for field in ['custom_snc_commission_type', 'custom_snc_commission_',
-                          'custom_snc_commission_amount', 'custom_snc_commission_lumpsum',
-                          'custom_has_representative_commission', 'custom_representative',
-                          'custom_rep_commission_type', 'custom_rep_commission_',
-                          'custom_rep_commission_amount']:
+            
+            # FIXED: Always set BOTH customer item code fields
+            if hasattr(item, 'custom_customer_item_code'):
+                customer_item_code = item.custom_customer_item_code or "N/A"
+                new_item_price.custom_customer_item_code = customer_item_code
+                # FIXED: Also set the custom_customer_code field (Small Text field)
+                new_item_price.custom_customer_code = customer_item_code
+                logger.info(f"Set customer item codes to: {customer_item_code}")
+            
+            # Set commission fields
+            commission_fields = [
+                'custom_snc_commission_type', 'custom_snc_commission_',
+                'custom_has_representative_commission', 'custom_representative',
+                'custom_rep_commission_type', 'custom_rep_commission_'
+            ]
+            for field in commission_fields:
                 if hasattr(item, field):
                     setattr(new_item_price, field, getattr(item, field))
-            if not item.custom_snc_commission_:
+            
+            # FIXED: Always use per-quantity amounts for commission
+            if hasattr(item, 'custom_snc_commission_amount_per_qty'):
                 new_item_price.custom_snc_commission_amount = item.custom_snc_commission_amount_per_qty
                 new_item_price.custom_snc_commission_lumpsum = item.custom_snc_commission_amount_per_qty
-            if not item.custom_rep_commission_:
+                logger.info(f"Set SNC commission amount to per-qty value: {item.custom_snc_commission_amount_per_qty}")
+            
+            if hasattr(item, 'custom_rep_commission_amount_per_qty'):
                 new_item_price.custom_rep_commission_amount = item.custom_rep_commission_amount_per_qty
-            logger.info(f"Creating new Item Price {new_item_price.item_code} with rate {item.rate}")
+                logger.info(f"Set Rep commission amount to per-qty value: {item.custom_rep_commission_amount_per_qty}")
+                
             new_item_price.insert()
-            frappe.msgprint(f"Created new Item Price {new_item_price.item_code} with rate {item.rate}")
+            logger.info(f"Successfully created new Standard Selling Item Price {new_item_price.item_code}")
+            frappe.msgprint(f"Created new Standard Selling Item Price {new_item_price.item_code} with customer code and rate {item.rate}")
+
+# NEW FUNCTION: Update Standard Buying Item Prices with customer info
+def update_standard_buying_item_prices(doc, method):
+    """
+    Find and update any Standard Buying Item Price records created during this process
+    to include customer information and commission data.
+    FIXED: Properly updates both custom_customer_item_code and custom_customer_code fields.
+    """
+    for item in doc.items:
+        # Look for Standard Buying Item Price records for this item without customer
+        buying_item_prices = frappe.get_all('Item Price', 
+            filters={
+                'item_code': item.item_code,
+                'price_list': 'Standard Buying',
+                'customer': ['in', [None, '']]
+            },
+            fields=['name']
+        )
+        
+        for price_record in buying_item_prices:
+            logger.info(f"Updating Standard Buying Item Price {price_record.name} with customer and commission info")
+            
+            # Update the Standard Buying Item Price with customer information
+            buying_item_price = frappe.get_doc('Item Price', price_record.name)
+            buying_item_price.customer = doc.customer
+            buying_item_price.custom_customer_name = doc.customer_name
+            
+            # FIXED: Always set BOTH customer item code fields
+            if hasattr(item, 'custom_customer_item_code'):
+                customer_item_code = item.custom_customer_item_code or "N/A"
+                buying_item_price.custom_customer_item_code = customer_item_code
+                # FIXED: Also set the custom_customer_code field (Small Text field)
+                buying_item_price.custom_customer_code = customer_item_code
+                logger.info(f"Set customer item codes in Standard Buying price to: {customer_item_code}")
+            
+            # Copy commission information to Standard Buying Item Price
+            commission_fields = [
+                'custom_snc_commission_type', 'custom_snc_commission_',
+                'custom_has_representative_commission', 'custom_representative',
+                'custom_rep_commission_type', 'custom_rep_commission_'
+            ]
+            
+            for field in commission_fields:
+                if hasattr(item, field):
+                    setattr(buying_item_price, field, getattr(item, field))
+            
+            # FIXED: Always use per-quantity amounts for Standard Buying Item Price
+            if hasattr(item, 'custom_snc_commission_amount_per_qty'):
+                buying_item_price.custom_snc_commission_lumpsum = item.custom_snc_commission_amount_per_qty
+                buying_item_price.custom_snc_commission_amount = item.custom_snc_commission_amount_per_qty
+                logger.info(f"Set SNC commission in Standard Buying price to per-qty value: {item.custom_snc_commission_amount_per_qty}")
+            
+            if hasattr(item, 'custom_rep_commission_amount_per_qty'):
+                buying_item_price.custom_rep_commission_amount = item.custom_rep_commission_amount_per_qty
+                logger.info(f"Set Rep commission in Standard Buying price to per-qty value: {item.custom_rep_commission_amount_per_qty}")
+            
+            buying_item_price.save()
+            
+            frappe.msgprint(f"Updated Standard Buying Item Price {buying_item_price.item_code} with customer code and commission info", alert=True)
+            logger.info(f"Updated Standard Buying Item Price {price_record.name} - added customer {doc.customer} and customer code data")
 
 def sales_order_on_submit(doc, method):
     # Check if Sales Order items are available
@@ -171,12 +283,18 @@ def update_stock_order(doc, method):
                 frappe.msgprint(f"Updated Stock Order {stock_order.name} with sales quantity {item.qty}", alert=True)
 
 def update_customer_item_code(doc, method):
+    """
+    Updates Item master with customer-specific item codes.
+    IMPROVED: Better error handling and ensures all items are processed.
+    """
     # Iterate through each item in the sales order
-    try:
-        for item in doc.items:
+    for item in doc.items:
+        try:
             item_code = item.item_code
             # Get the value, defaulting to "N/A" if it's None or empty
             custom_customer_item_code = item.custom_customer_item_code or "N/A"
+            
+            logger.info(f"Processing customer item code for {item_code}: {custom_customer_item_code}")
 
             # Fetch the corresponding Item document
             item_doc = frappe.get_doc("Item", item_code)
@@ -190,6 +308,7 @@ def update_customer_item_code(doc, method):
                     # If found, update the ref_code
                     customer_item.ref_code = custom_customer_item_code
                     found = True
+                    logger.info(f"Updated existing customer item entry for {doc.customer}")
                     break
 
             if not found:
@@ -198,19 +317,25 @@ def update_customer_item_code(doc, method):
                     "customer_name": doc.customer,
                     "ref_code": custom_customer_item_code # Using "N/A" default
                 })
+                logger.info(f"Added new customer item entry for {doc.customer}")
 
             # Save the Item document
             item_doc.save()
+            logger.info(f"Successfully updated customer item code for {item_code}")
             frappe.msgprint(_("Updated customer item code for {0}").format(item_code), alert=True)
 
-    except frappe.DoesNotExistError:
-        frappe.msgprint(_("Item {0} not found.").format(item_code), alert=True)
-        logger.error(f"Item {item_code} not found.")
-        raise  # Re-raise to stop processing
-    except Exception as e:
-        frappe.msgprint(_("Error updating customer item code: {0}").format(str(e)), alert=True)
-        logger.error(f"Error updating customer item code: {str(e)}")
-        raise
+        except frappe.DoesNotExistError:
+            error_msg = f"Item {item_code} not found."
+            frappe.msgprint(_(error_msg), alert=True)
+            logger.error(error_msg)
+            # Continue processing other items instead of stopping
+            continue
+        except Exception as e:
+            error_msg = f"Error updating customer item code for {item_code}: {str(e)}"
+            frappe.msgprint(_(error_msg), alert=True)
+            logger.error(error_msg)
+            # Continue processing other items instead of stopping
+            continue
 
 @frappe.whitelist()
 @frappe.validate_and_sanitize_search_inputs
@@ -260,7 +385,7 @@ def get_sales_order_from_items(order_confirmation):
         JOIN `tabSales Order Item` soi ON so.name = soi.parent
         WHERE soi.custom_order_confirmation = %s
         LIMIT 1
-    """, (order_confirmation,), as_dict=1)  # Corrected: Added closing triple quote
+    """, (order_confirmation,), as_dict=1)
     logger.info(f"Sales Order from items {result}")
 
     return {"sales_order": result[0].name, "customer": result[0].customer} if result else None
