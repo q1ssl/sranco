@@ -5,6 +5,29 @@ logger.set_log_level("DEBUG")
 logger = frappe.logger("sranco_logs", allow_site=True, file_count=1)
 
 @frappe.whitelist()
+def get_customer_item_code(item_code, customer):
+    """
+    Fetch the customer-specific item code (ref_code) from Item Customer Detail
+    """
+    try:
+        # Query to find the ref_code for the specific item and customer
+        result = frappe.db.sql("""
+            SELECT ref_code
+            FROM `tabItem Customer Detail`
+            WHERE parent = %s AND customer_name = %s
+        """, (item_code, customer), as_dict=1)
+        
+        if result and result[0].get('ref_code'):
+            return result[0].get('ref_code')
+        else:
+            return None
+            
+    except Exception as e:
+        logger.error(f"Error in get_customer_item_code: {e}")
+        frappe.log_error(f"Error in get_customer_item_code: {e}", "Sranco_logs")
+        return None
+
+@frappe.whitelist()
 def get_rep_sales_invoice_list(representative, from_date, to_date):
     try:
         # Fetching sales invoices based on the representative and date range
@@ -59,7 +82,7 @@ def update_commission_calculations(sales_invoice):
         for item in invoice.items:
             # Update representative commission
             if item.custom_rep_commission_type == "Percent":
-                commission_per_qty = (item.custom_rep_commission_percent * item.rate) / 100
+                commission_per_qty = (item.custom_rep_commission_ * item.rate) / 100
                 item.custom_rep_commission_amount_per_qty = commission_per_qty
                 item.custom_rep_commission_amount = commission_per_qty * item.qty
             elif item.custom_rep_commission_type == "Amount":
@@ -67,7 +90,7 @@ def update_commission_calculations(sales_invoice):
             
             # Update SNC commission
             if item.custom_snc_commission_type == "Percent":
-                commission_per_qty = (item.custom_snc_commission_percent * item.rate) / 100
+                commission_per_qty = (item.custom_snc_commission_ * item.rate) / 100
                 item.custom_snc_commission_amount_per_qty = commission_per_qty
                 item.custom_snc_commission_amount = commission_per_qty * item.qty
             elif item.custom_snc_commission_type == "Amount":

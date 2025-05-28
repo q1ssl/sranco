@@ -7,9 +7,26 @@ frappe.ui.form.on("Sales Invoice", {
         calc_total_rep_commission(frm);
         calc_total_snc_commission(frm);
     },
+    customer: function(frm) {
+        // When customer changes, update all items' customer item codes
+        if(frm.doc.customer) {
+            frm.doc.items.forEach(function(item) {
+                if(item.item_code) {
+                    fetch_customer_item_code(frm, item.item_code, frm.doc.customer, item.idx - 1);
+                }
+            });
+        }
+    }
 });
 
 frappe.ui.form.on("Sales Invoice Item", {
+    item_code: function(frm, cdt, cdn) {
+        var row = locals[cdt][cdn];
+        if(row.item_code && frm.doc.customer) {
+            // When item code changes, fetch the customer's item code
+            fetch_customer_item_code(frm, row.item_code, frm.doc.customer, row.idx - 1);
+        }
+    },
     qty: function (frm, cdt, cdn) {
         calc_total_rep_commission(frm);
         calc_total_snc_commission(frm);
@@ -30,16 +47,14 @@ frappe.ui.form.on("Sales Invoice Item", {
         update_snc_commission(frm, cdt, cdn);
         calc_total_snc_commission(frm);
     },
-    // Add handlers for percentage changes
-    custom_rep_commission_percent: function (frm, cdt, cdn) {
+    custom_rep_commission_: function (frm, cdt, cdn) {
         update_rep_commission(frm, cdt, cdn);
         calc_total_rep_commission(frm);
     },
-    custom_snc_commission_percent: function (frm, cdt, cdn) {
+    custom_snc_commission_: function (frm, cdt, cdn) {
         update_snc_commission(frm, cdt, cdn);
         calc_total_snc_commission(frm);
     },
-    // Add handlers for amount per qty changes
     custom_rep_commission_amount_per_qty: function (frm, cdt, cdn) {
         update_rep_commission(frm, cdt, cdn);
         calc_total_rep_commission(frm);
@@ -49,6 +64,29 @@ frappe.ui.form.on("Sales Invoice Item", {
         calc_total_snc_commission(frm);
     }
 });
+
+// Function to fetch customer-specific item code
+function fetch_customer_item_code(frm, item_code, customer, row_idx) {
+    frappe.call({
+        method: "sranco.sales_invoice.get_customer_item_code",
+        args: {
+            item_code: item_code,
+            customer: customer
+        },
+        callback: function(r) {
+            if(r.message) {
+                // Update the custom_customer_item_code field in the specific row
+                frappe.model.set_value(
+                    "Sales Invoice Item", 
+                    frm.doc.items[row_idx].name, 
+                    "custom_customer_item_code", 
+                    r.message
+                );
+                frm.refresh_field("items");
+            }
+        }
+    });
+}
 
 function calc_total_rep_commission(frm) {
     // calculate total representative commission and set it to custom_total_representative_commission field
@@ -77,7 +115,7 @@ function update_rep_commission(frm, cdt, cdn) {
     var row = locals[cdt][cdn];
     if (row.custom_rep_commission_type == "Percent") {
         // Calculate commission per qty first
-        var commission_per_qty = (row.custom_rep_commission_percent * row.rate) / 100;
+        var commission_per_qty = (row.custom_rep_commission_ * row.rate) / 100;
         row.custom_rep_commission_amount_per_qty = commission_per_qty;
         
         // Then calculate total commission
@@ -92,7 +130,7 @@ function update_snc_commission(frm, cdt, cdn) {
     var row = locals[cdt][cdn];
     if (row.custom_snc_commission_type == "Percent") {
         // Calculate commission per qty first (for a single item)
-        var commission_per_qty = (row.custom_snc_commission_percent * row.rate) / 100;
+        var commission_per_qty = (row.custom_snc_commission_ * row.rate) / 100;
         row.custom_snc_commission_amount_per_qty = commission_per_qty;
         
         // Then calculate total commission for all qty
