@@ -20,34 +20,80 @@ def get_rep_sales_invoice_list(representative, from_date, to_date):
             GROUP BY si.name
             ORDER BY si.posting_date DESC
             """, {'representative': representative, 'from_date': from_date, 'to_date': to_date}, as_dict=1)
-
         return invoices
-
     except Exception as e:
-        logger.error(f"Error in get_sales_invoice_list: {e}")
-        frappe.log_error(f"Error in get_sales_invoice_list: {e}", "Sranco_logs")
+        logger.error(f"Error in get_rep_sales_invoice_list: {e}")
+        frappe.log_error(f"Error in get_rep_sales_invoice_list: {e}", "Sranco_logs")
         return []
-
 
 @frappe.whitelist()
 def get_snc_sales_invoice_list(from_date, to_date):
     try:
-        # Fetching sales invoices based on the representative and date range
-        logger.info(f"Fetching sales invoices based on the representative and date range {from_date} {to_date}")
+        # Fetching sales invoices based on date range for SNC commission
+        logger.info(f"Fetching sales invoices for SNC commission in date range {from_date} {to_date}")
         invoices = frappe.db.sql("""
             SELECT si.name AS sales_invoice, si.posting_date AS invoice_date, si.customer, si.custom_total_snc_commission AS commission_amount, si.custom_invoice_no_t as invoice_no_t
             FROM `tabSales Invoice` si
-            JOIN `tabSales Invoice Item` si_item ON si.name = si_item.parent
-            AND si.posting_date BETWEEN %(from_date)s AND %(to_date)s
+            WHERE si.posting_date BETWEEN %(from_date)s AND %(to_date)s
             AND si.docstatus = 1
             AND si.custom_snc_commission_statement_generated = 0
-            GROUP BY si.name
+            AND si.custom_total_snc_commission > 0
             ORDER BY si.posting_date DESC
             """, {'from_date': from_date, 'to_date': to_date}, as_dict=1)
-
         return invoices
-
     except Exception as e:
-        logger.error(f"Error in get_sales_invoice_list: {e}")
-        frappe.log_error(f"Error in get_sales_invoice_list: {e}", "Sranco_logs")
+        logger.error(f"Error in get_snc_sales_invoice_list: {e}")
+        frappe.log_error(f"Error in get_snc_sales_invoice_list: {e}", "Sranco_logs")
         return []
+
+@frappe.whitelist()
+def update_commission_calculations(sales_invoice):
+    """
+    Manually recalculate all commission values for a sales invoice
+    """
+    try:
+        invoice = frappe.get_doc("Sales Invoice", sales_invoice)
+        total_rep_commission = 0
+        total_snc_commission = 0
+        
+        for item in invoice.items:
+            # Update representative commission
+            if item.custom_rep_commission_type == "Percent":
+                commission_per_qty = (item.custom_rep_commission_percent * item.rate) / 100
+                item.custom_rep_commission_amount_per_qty = commission_per_qty
+                item.custom_rep_commission_amount = commission_per_qty * item.qty
+            elif item.custom_rep_commission_type == "Amount":
+                item.custom_rep_commission_amount = (item.custom_rep_commission_amount_per_qty or 0) * item.qty
+            
+            # Update SNC commission
+            if item.custom_snc_commission_type == "Percent":
+                commission_per_qty = (item.custom_snc_commission_percent * item.rate) / 100
+                item.custom_snc_commission_amount_per_qty = commission_per_qty
+                item.custom_snc_commission_amount = commission_per_qty * item.qty
+            elif item.custom_snc_commission_type == "Amount":
+                item.custom_snc_commission_amount = (item.custom_snc_commission_amount_per_qty or 0) * item.qty
+            
+            # Sum up commissions
+            total_rep_commission += item.custom_rep_commission_amount or 0
+            total_snc_commission += item.custom_snc_commission_amount or 0
+        
+        # Update totals on the invoice
+        invoice.custom_total_representative_commission = total_rep_commission
+        invoice.custom_total_snc_commission = total_snc_commission
+        
+        # Save the invoice
+        invoice.save()
+        
+        return {
+            "success": True,
+            "message": "Commission calculations updated successfully",
+            "total_rep_commission": total_rep_commission,
+            "total_snc_commission": total_snc_commission
+        }
+    except Exception as e:
+        logger.error(f"Error in update_commission_calculations: {e}")
+        frappe.log_error(f"Error in update_commission_calculations: {e}", "Sranco_logs")
+        return {
+            "success": False,
+            "message": f"Error updating commission calculations: {str(e)}"
+        }
