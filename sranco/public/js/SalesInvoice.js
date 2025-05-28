@@ -10,9 +10,9 @@ frappe.ui.form.on("Sales Invoice", {
     customer: function(frm) {
         // When customer changes, update all items' customer item codes
         if(frm.doc.customer) {
-            frm.doc.items.forEach(function(item) {
+            frm.doc.items.forEach(function(item, idx) {
                 if(item.item_code) {
-                    fetch_customer_item_code(frm, item.item_code, frm.doc.customer, item.idx - 1);
+                    fetch_customer_item_code(frm, item.item_code, frm.doc.customer, idx);
                 }
             });
         }
@@ -66,7 +66,7 @@ frappe.ui.form.on("Sales Invoice Item", {
 });
 
 // Function to fetch customer-specific item code
-function fetch_customer_item_code(frm, item_code, customer, row_idx) {
+function fetch_customer_item_code(frm, item_code, customer, idx) {
     frappe.call({
         method: "sranco.sales_invoice.get_customer_item_code",
         args: {
@@ -75,10 +75,10 @@ function fetch_customer_item_code(frm, item_code, customer, row_idx) {
         },
         callback: function(r) {
             if(r.message) {
-                // Update the custom_customer_item_code field in the specific row
+                // Update the customer_item_code field in the specific row
                 frappe.model.set_value(
                     "Sales Invoice Item", 
-                    frm.doc.items[row_idx].name, 
+                    frm.doc.items[idx].name, 
                     "custom_customer_item_code", 
                     r.message
                 );
